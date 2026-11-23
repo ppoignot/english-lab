@@ -1,0 +1,29 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#FFFBF7">
+<title>English Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>body{margin:0;background:#FFFBF7;font-family:Nunito,system-ui,sans-serif}#boot{position:fixed;inset:0;display:grid;place-content:center;text-align:center;color:#B8400F;font-weight:800;gap:10px}
+#boot b{font-size:28px}#boot span{color:#7D685D;font-weight:700}</style></head>
+<body><div id="boot"><b>English Lab</b><span id="bootMsg">Chargement…</span></div>
+<script src="base-url.js"></script>
+<script>
+/* Loader: the app's code and courses live on GitHub Pages. At each launch we fetch the latest version
+   (if online), keep it on the phone, and run it. Offline, the last downloaded version is used. */
+(async function(){
+  const B=window.EL_BASE,K="el-bundle",msg=t=>{const e=document.getElementById("bootMsg");if(e)e.textContent=t};
+  let cur=null;try{cur=JSON.parse(localStorage.getItem(K)||"null")}catch(e){}
+  async function download(){
+    const r=await fetch(B+"version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)throw "manifest";
+    const man=await r.json();if(cur&&cur.v===man.v)return false;
+    const files={};for(const f of man.files){const x=await fetch(B+f+"?v="+man.v,{cache:"no-store"});if(!x.ok)throw f;files[f]=await x.text()}
+    const nb={v:man.v,order:man.files,files};try{localStorage.setItem(K,JSON.stringify(nb))}catch(e){}
+    return nb}
+  try{const nb=await Promise.race([download(),new Promise((_,rej)=>setTimeout(()=>rej("slow"),cur?3000:20000))]);if(nb)cur=nb}catch(e){}
+  if(!cur){try{msg("Première ouverture hors ligne…");const man=await (await fetch("bundle/version.json")).json();const files={};
+      for(const f of man.files)files[f]=await (await fetch("bundle/"+f)).text();cur={v:man.v,order:man.files,files}}
+    catch(e){msg("Connexion internet nécessaire au premier lancement.");return}}
+  window.EL_VERSION=cur.v;
+  cur.order.filter(f=>f.endsWith(".css")).forEach(f=>{const s=document.createElement("style");s.textContent=cur.files[f];document.head.appendChild(s)});
+  for(const f of cur.order.filter(f=>f.endsWith(".js"))){const s=document.createElement("script");s.textContent=cur.files[f]+"\n//# sourceURL="+f;document.body.appendChild(s)}
+})();
+</script></body></html>

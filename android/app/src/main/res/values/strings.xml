@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">English Lab</string>
+    <string name="title_activity_main">English Lab</string>
+    <string name="package_name">fr.pierreolivier.englishlab</string>
+    <string name="custom_url_scheme">fr.pierreolivier.englishlab</string>
+</resources>

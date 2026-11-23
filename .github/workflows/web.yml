@@ -1,0 +1,24 @@
+# Publishes the app (web/) on GitHub Pages. The Android app downloads it at each launch:
+# every push here updates the app on the phone, with no reinstall.
+name: Mise à jour de l'app (web)
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "tools/**", ".github/workflows/web.yml"]
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node tools/bundle.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web }
+      - id: d
+        uses: actions/deploy-pages@v4

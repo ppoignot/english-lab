@@ -1,0 +1,40 @@
+# Builds the Android app (APK) and publishes it in the repository's Releases.
+# Only needed when the native shell changes (rare): content and features update through web.yml.
+name: Construire l'appli Android (APK)
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", "www/**", "package.json", "capacitor.config.json", ".github/workflows/apk.yml"]
+  workflow_dispatch:
+permissions: { contents: write }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: node tools/bundle.js
+      - run: npx cap sync android
+      - name: Clé de signature (toujours la même, pour pouvoir mettre l'appli à jour)
+        env: { KS_B64: "${{ secrets.EL_KEYSTORE_B64 }}" }
+        run: |
+          if [ -n "$KS_B64" ]; then echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"; echo "EL_KEYSTORE=$RUNNER_TEMP/release.jks" >> $GITHUB_ENV; fi
+      - name: Compilation
+        env:
+          EL_KS_PASS: "${{ secrets.EL_KEYSTORE_PASS }}"
+          EL_VERSION_CODE: "${{ github.run_number }}"
+        run: |
+          export EL_VERSION_NAME=$(node -p "require('./package.json').version")
+          cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk ../english-lab.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v${{ github.run_number }}
+          name: English Lab ${{ github.run_number }}
+          make_latest: "true"
+          files: english-lab.apk
+          body: "Télécharge english-lab.apk sur ton téléphone Android et ouvre-le pour l'installer ou le mettre à jour."

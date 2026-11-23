@@ -1,0 +1,14 @@
+{
+ "v": "dev-17954464",
+ "files": [
+  "base.css",
+  "mobile.css",
+  "config.js",
+  "adapters.js",
+  "app.js",
+  "mobile.js"
+ ],
+ "native": "1.0.0",
+ "apk": "",
+ "at": "2026-11-23T15:06:42.433Z"
+}
