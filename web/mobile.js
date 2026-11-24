@@ -15,6 +15,7 @@ function route(){
   if(PRON.active&&view!=="coach"){PRON.active=false;PRON.phase="ready";try{DICT0&&DICT0.stop().catch(()=>{})}catch(e){}}
   if(ORAL.active&&view!=="coach"){oralStopListening(true);oralStopSpeech();ORAL.active=false;ORAL.phase="idle"}
   if(CAR.active&&view!=="car")carStop(true);
+  document.querySelectorAll(".ov").forEach(o=>o.remove());
   render();window.scrollTo(0,0);
 }
 function ensureShell(){if($("#mnav"))return;
@@ -31,6 +32,8 @@ function render(){
   $("#mbar").innerHTML=`${isRoot?"":`<button class="mback" id="mBack" aria-label="Retour">${ICON.back||"‹"}</button>`}<h1 class="mtitle">${esc(title)}</h1><span class="spacer"></span>
     ${coach?`<span class="chip">${ICON.users}<span>Coach</span></span>`:`<span class="chip mstreak" title="Jours d'affilée">${ICON.flame}<span>${stk}</span></span><span class="chip mxp" title="Objectif du jour">${ring(dx,DAILY_GOAL,24,4)}<span>${dx}</span></span>
     <a class="mgear" href="#settings" aria-label="Réglages">${ICON.gear}</a>`}`;
+  $("#mbar").insertAdjacentHTML("beforeend",`<button class="mquick" id="mQuick" aria-label="Accès rapide">${ICON.book}<span>Mémos</span></button>`);
+  $("#mQuick").onclick=openQuick;
   if($("#mBack"))$("#mBack").onclick=goBack;
   const nav=coach?NAV_C:NAV_S,g=GROUP[view];
   $("#mnav").innerHTML=nav.map(([k,l,ic])=>`<a href="#${k}" class="${g===k?"on":""}" aria-current="${g===k?"page":"false"}"><span class="ni">${ICON[ic]}${k==="learn"&&open&&!coach?`<span class="badge">${open}</span>`:""}</span><span>${l}</span></a>`).join("");
@@ -44,6 +47,20 @@ ICON.back=sv('<path d="M15 18l-6-6 6-6"/>');
 ICON.gear=sv('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>');
 ICON.chev=sv('<path d="M9 18l6-6-6-6"/>');
 
+/* quick access sheet: tenses chart, irregular verbs, every grammar memo, last lesson sheet */
+function openQuick(){
+  const ov=document.createElement("div");ov.className="ov quick-ov";const cur=curLesson();
+  ov.innerHTML=`<div class="box"><div class="row" style="padding:10px 16px 0"><h2 style="flex:1">Accès rapide</h2><button class="btn ghost" id="qX" aria-label="Fermer">${ICON.x}</button></div>
+   <div class="qgrid">
+    <button class="mtile t-exo" data-chart="1">${tile("exo",{ic:"grid",solid:true})}<b>Les 7 temps</b><span>Tableau + frise</span></button>
+    <button class="mtile t-rev" data-irrlist="1">${tile("rev",{ic:"abc",solid:true})}<b>Verbes irréguliers</b><span>${IRR.length} verbes</span></button>
+    ${cur?`<a class="mtile t-cours" href="#lessons--${cur.id}">${tile("cours",{ic:"book",solid:true})}<b>Fiche du cours ${cur.n}</b><span>${esc(cur.topic)}</span></a>`:""}
+   </div>
+   <h3 class="msec" style="padding:0 16px">Mémos de grammaire</h3>
+   <div class="qmemos">${Object.entries(MEMOS).map(([k,m])=>`<button class="mrow t-cours" data-memo="${k}">${tile("cours",{ic:"book"})}<div class="mrt"><b>${esc(m.t)}</b></div><span class="mchev">${ICON.chev}</span></button>`).join("")}</div></div>`;
+  document.querySelectorAll(".quick-ov").forEach(o=>o.remove());document.body.appendChild(ov);
+  const close=()=>ov.remove();$("#qX",ov).onclick=close;ov.onclick=e=>{if(e.target===ov||e.target.closest("a,[data-chart],[data-irrlist],[data-memo]"))setTimeout(close,0)};
+}
 /* big tappable row / tile helpers */
 const mrow=(href,t,ic,title,txt,right="",attr="")=>`<a class="mrow t-${t}" ${href?`href="${href}"`:""} ${attr}>${tile(t,{ic})}<div class="mrt"><b>${title}</b>${txt?`<span>${txt}</span>`:""}</div>${right}<span class="mchev">${ICON.chev}</span></a>`;
 const mtile=(href,t,ic,title,txt,attr="")=>`<a class="mtile t-${t}" ${href?`href="${href}"`:""} ${attr}>${tile(t,{ic,solid:true})}<b>${title}</b>${txt?`<span>${txt}</span>`:""}</a>`;
@@ -69,6 +86,8 @@ function vHome(app){
     ${mtile("#coach","coach","chat","Oral","Avec Emma")}
     ${mtile("#review","rev","layers","Révisions",cards?plural(cards,"carte")+" à revoir":"À jour")}
     ${mtile("","exo","grid","7 temps","Tableau",'data-chart="1"')}
+    ${mtile("","rev","abc","Verbes irréguliers",IRR.length+" verbes",'data-irrlist="1"')}
+    ${mtile("","cours","book","Mémos","Toutes les règles",'id="hQuick"')}
    </div>
    ${next}
    ${cur?`<h3 class="msec">Programme du jour</h3><div class="mlist">
@@ -175,4 +194,5 @@ try{const App=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugi
   App.getInfo().then(i=>{window.EL_NATIVE_VER=i.version}).catch(()=>{})}}catch(e){}
 /* keep the screen on in car mode */
 try{const KA=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.KeepAwake;if(KA){const _cs=carStart,_cst=carStop;carStart=function(){KA.keepAwake().catch(()=>{});return _cs.apply(this,arguments)};carStop=function(){KA.allowSleep().catch(()=>{});return _cst.apply(this,arguments)}}}catch(e){}
+document.addEventListener("click",e=>{if(e.target.closest("#hQuick")){e.preventDefault();openQuick()}});
 ELBOOT();
