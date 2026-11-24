@@ -1714,15 +1714,24 @@ function focusPool(){const f=CAR.focus;if(!f)return CAR.pool;
   let p=CAR.pool;if(f.kinds&&f.kinds.length){const q=p.filter(i=>f.kinds.includes(i.kind));if(q.length>=3)p=q}
   if(f.topic&&f.topic!=="all"){const q=p.filter(i=>itemTense(i)===f.topic);if(q.length>=3)p=q}
   return p}
+/* short sounds: the driver knows without looking when the mic opens/closes and if he was right */
+let EAR=null;
+function earcon(type){try{EAR=EAR||new (window.AudioContext||window.webkitAudioContext)();const ctx=EAR;if(ctx.state==="suspended")ctx.resume();
+  const seq={open:[[660,.08],[990,.11]],close:[[520,.09]],ok:[[784,.09],[1047,.16]],ko:[[330,.12],[247,.2]]}[type]||[];let t=ctx.currentTime+.02;
+  seq.forEach(([f,d])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.35,t+.015);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ctx.destination);o.start(t);o.stop(t+d+.02);t+=d+.03})}catch(e){}}
+const carAuto=()=>!!DICT&&(lsGet("el-car-auto")??(window.EL_NATIVE?"1":"0"))==="1";
+function carAutoListen(lang){if(!CAR.active||!carAuto())return;clearTimeout(CAR.autoT);CAR.autoT=setTimeout(()=>{if(CAR.active&&["await","repeat"].includes(CAR.phase))carTalk(lang||"en")},250)}
 /* called from the click */
 function carStart(){
   CAR.pool=carPool();if(!CAR.pool.length){toast("Rien à travailler pour l'instant");return}
-  Object.assign(CAR,{queue:[],i:0,results:[],requeued:{},summary:null,paused:false,active:true,handsfree:!!DICT,micState:"idle",focus:null,last:null,buf:"",partial:"",talkMode:"answer"});
+  Object.assign(CAR,{queue:[],i:0,results:[],requeued:{},summary:null,paused:false,active:true,handsfree:!!DICT,micState:"idle",focus:null,last:null,buf:"",partial:"",talkMode:"answer",noAns:0});
+  earcon("");
   initDict();
   try{const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u)}catch(e){}
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").then(w=>CAR.wake=w).catch(()=>{})}catch(e){}
   CAR.phase="intro";render();
-  speakSeq([{text:DICT?"C'est parti ! Après chaque consigne, touche le gros bouton micro pour répondre. Tu peux aussi me poser une question, ou me demander un autre type d'exercice.":"C'est parti ! Réponds à voix haute, puis touche le bouton pour voir la réponse.",lang:"fr"}]).then(()=>{if(CAR.active)carNext()});
+  const seen=lsGet("el-car-intro");lsSet("el-car-intro","1");
+  speakSeq([{text:!DICT?"C'est parti ! Réponds à voix haute, puis touche le bouton pour voir la réponse.":carAuto()?(seen?"C'est parti !":"C'est parti ! Après chaque question, un petit bip : tu réponds. Tu peux aussi me poser une question avec le bouton français, ou dire stop."):(seen?"C'est parti !":"C'est parti ! Après chaque consigne, touche le gros bouton pour répondre."),lang:"fr"}]).then(()=>{if(CAR.active)carNext()});
 }
 function carStop(silent){
   CAR.active=false;clearTimeout(CAR.timer);clearTimeout(CAR.maxT);carStopSpeech();
@@ -1734,24 +1743,33 @@ function carStop(silent){
 async function carNext(){
   if(!CAR.active)return;
   if(CAR.i>=CAR.queue.length)CAR.queue.push(pickNext(focusPool()));
-  const it=CAR.queue[CAR.i];CAR.buf="";CAR.partial="";CAR.last=null;CAR.talkMode="answer";CAR.t0=null;
+  const it=CAR.queue[CAR.i];CAR.buf="";CAR.partial="";CAR.last=null;CAR.talkMode="answer";CAR.t0=null;CAR.noAns=0;
   CAR.phase="prompt";renderCar();
   await speakSeq([{text:LANG_LABEL[it.kind]+" :",lang:"fr"}].concat(it.say));
   if(!CAR.active||CAR.phase!=="prompt")return;
-  CAR.phase="await";CAR.t0=Date.now();renderCar();
+  CAR.phase="await";CAR.t0=Date.now();renderCar();carAutoListen();
 }
+/* nothing heard: repeat once, then move on without counting anything */
+async function carNoAnswer(){const it=CAR.queue[CAR.i];if(!it||!CAR.active)return;
+  if(CAR.talkMode==="repeat"){CAR.i++;carNext();return}
+  if(!carAuto()){CAR.phase="await";renderCar();await speakSeq([{text:"Je n'ai rien entendu. Touche le micro quand tu es prêt.",lang:"fr"}]);return}
+  if((CAR.noAns=(CAR.noAns||0)+1)<2){CAR.phase="prompt";renderCar();await speakSeq([{text:"Je répète.",lang:"fr"}].concat(it.say));if(CAR.active&&CAR.phase==="prompt"){CAR.phase="await";CAR.t0=Date.now();renderCar();carAutoListen()}return}
+  CAR.results.push({it,answer:"",verdict:"skip"});CAR.phase="prompt";renderCar();await speakSeq([{text:"On passe, je te la reposerai.",lang:"fr"}]);if(CAR.active){CAR.i++;carNext()}}
 /* the big button: start listening (must run straight from the tap) / finish */
 function carTalk(lang){
   if(!CAR.active)return;
   if(!DICT){if(CAR.phase==="await"||CAR.phase==="prompt"){carStopSpeech();carReveal()}return}
   if(CAR.phase==="listening"){carCloseAnswer();return}
   if(["checking","thinking","intro"].includes(CAR.phase))return;
-  carStopSpeech();clearTimeout(CAR.timer);
+  carStopSpeech();clearTimeout(CAR.timer);clearTimeout(CAR.autoT);CAR.cont=0;
   CAR.talkMode=CAR.phase==="repeat"?"repeat":CAR.phase==="feedback"?"free":CAR.phase==="await"||CAR.phase==="prompt"?"answer":"free";
   CAR.buf="";CAR.partial="";CAR.heardAt=0;CAR.phase="listening";CAR.tStart=Date.now();CAR.micState="starting";renderCar();
-  CAR.talkLang=lang||"en";try{DICT.start({language:CAR.talkLang}).catch(e=>{CAR.micState="idle";if(CAR.phase==="listening"){CAR.phase="await";renderCar();toast(e&&e.code==="not_granted"?"Micro refusé":"Micro indisponible, réessaie")}})}catch(e){CAR.micState="idle";CAR.phase="await";renderCar()}
+  CAR.talkLang=lang||"en";
+  const go=()=>{if(CAR.phase!=="listening")return;try{DICT.start({language:CAR.talkLang}).catch(e=>{CAR.micState="idle";if(CAR.phase==="listening"){CAR.phase="await";renderCar();toast(e&&e.code==="not_granted"?"Micro refusé":"Micro indisponible, réessaie")}})}catch(e){CAR.micState="idle";CAR.phase="await";renderCar()}};
+  /* a short beep says "your turn"; on the phone the mic opens right after it (so it does not hear the beep) */
+  if(window.EL_NATIVE){earcon("open");setTimeout(go,230)}else{go();earcon("open")}
   clearTimeout(CAR.maxT);CAR.maxT=setTimeout(()=>{if(CAR.phase==="listening")carCloseAnswer()},40000);
-  CAR.timer=setTimeout(()=>{if(CAR.phase==="listening"&&!CAR.heardAt)carCloseAnswer()},12000);
+  CAR.timer=setTimeout(()=>{if(CAR.phase==="listening"&&!CAR.heardAt)carCloseAnswer()},carAuto()?9000:12000);
 }
 function carHeard(text,final){
   if(!CAR.active||CAR.phase!=="listening")return;
@@ -1762,7 +1780,7 @@ function carHeard(text,final){
   if(CAR.closing)return;
   clearTimeout(CAR.timer);
   /* close only after a real pause in his speech */
-  CAR.timer=setTimeout(carCloseAnswer,final?2300:3200);
+  CAR.timer=setTimeout(carCloseAnswer,final?(window.EL_NATIVE?1300:2300):3200);
 }
 async function carCloseAnswer(){
   if(CAR.phase!=="listening"||CAR.closing)return;CAR.closing=true;clearTimeout(CAR.timer);clearTimeout(CAR.maxT);
@@ -1770,7 +1788,8 @@ async function carCloseAnswer(){
   await micOff();
   const text=(CAR.buf+" "+CAR.partial).trim();CAR.closing=false;
   if(!CAR.active)return;
-  if(!norm(text)){CAR.phase="await";renderCar();await speakSeq([{text:"Je n'ai rien entendu. Touche le micro et parle quand tu es prêt.",lang:"fr"}]);return}
+  if(!norm(text)){carNoAnswer();return}
+  earcon("close");
   carProcess(text);
 }
 const CMD={skip:/^(next|skip|pass|suivant|passe|question suivante|on passe)$/,repeat:/^(repeat|again|r[ée]p[èe]te|encore|tu peux r[ée]p[ée]ter|r[ée]p[èe]te la question)$/,stop:/^(stop|arr[êe]te|on arr[êe]te|termin[ée]|fin|fin de (la )?session|arr[êe]ter la session|stop session)$/,idk:/^(je (ne )?sais pas|i don'?t know|i do not know|aucune id[ée]e|no idea)$/};
@@ -1780,7 +1799,7 @@ async function carProcess(text){
   if(CMD.repeat.test(n)){carRepeat();return}
   if(CMD.skip.test(n)){CAR.results.push({it,answer:"",verdict:"skip"});CAR.i++;carNext();return}
   if(CAR.talkMode==="repeat"&&it){const want=norm(CAR.last&&CAR.last.res&&CAR.last.res.corrected||it.ans[0]).split(" "),got=new Set(n.split(" "));
-    if(want.filter(w=>got.has(w)).length/want.length>=.75){CAR.phase="feedback";renderCar();await speakSeq([{text:"Très bien, c'est ça !",lang:"fr"}]);if(CAR.active){CAR.i++;carNext()}return}}
+    if(want.filter(w=>got.has(w)).length/want.length>=.75){CAR.phase="feedback";renderCar();earcon("ok");await speakSeq([{text:"Yes !",lang:"en"}]);if(CAR.active){CAR.i++;carNext()}return}}
   if(CAR.talkMode==="answer"&&it&&localMatch(it,text)){finishAnswer(text,{verdict:"correct",corrected:it.kind==="fill"||it.kind==="choice"?it.ask.replace(/\s*\([^)]*\)\s*$/,"").replace("___",it.shortAns||it.ans[0]):it.ans[0],errors:[],rule:""});return}
   if(CAR.talkMode==="answer"&&it&&CMD.idk.test(n)){finishAnswer(text,{verdict:"wrong",corrected:it.example||it.ans[0],errors:[],rule:it.rule,spoken:"Pas grave, on la retravaillera."});return}
   if(!SAMPLE){if(CAR.talkMode==="answer"&&it){finishAnswer(text,{verdict:"wrong",corrected:it.ans[0],errors:[],rule:it.rule})}else{CAR.phase="await";renderCar()}return}
@@ -1793,9 +1812,9 @@ async function carProcess(text){
     await speakSeq([{text:r.reply||"D'accord."}]);
     if(!CAR.active)return;
     if(r.intent==="request"&&(r.focus||r.next)){CAR.queue.length=CAR.i;carNext();return}
-    if(it){CAR.phase="prompt";renderCar();await speakSeq([{text:"On reprend.",lang:"fr"},{text:LANG_LABEL[it.kind]+" :",lang:"fr"}].concat(it.say));if(CAR.active&&CAR.phase==="prompt"){CAR.phase="await";renderCar()}}
+    if(it){CAR.phase="prompt";renderCar();await speakSeq([{text:"On reprend.",lang:"fr"},{text:LANG_LABEL[it.kind]+" :",lang:"fr"}].concat(it.say));if(CAR.active&&CAR.phase==="prompt"){CAR.phase="await";CAR.t0=Date.now();renderCar();carAutoListen()}}
     return}
-  if(CAR.talkMode==="repeat"){CAR.phase="feedback";renderCar();await speakSeq([{text:r.spoken||"Presque. On la retravaillera.",lang:"fr"}]);if(CAR.active){CAR.i++;carNext()}return}
+  if(CAR.talkMode==="repeat"){CAR.phase="feedback";renderCar();await speakSeq([{text:"Presque, on la retravaillera.",lang:"fr"}]);if(CAR.active){CAR.i++;carNext()}return}
   if(!it){CAR.phase="await";renderCar();return}
   finishAnswer(text,r);
 }
@@ -1816,7 +1835,7 @@ He just said (speech-to-text, may contain French words; ignore punctuation and c
 3. If "question" or "request": write "reply", spoken by a text-to-speech voice: in French, max 70 words, simple and friendly, may include very short English examples, no lists, no markdown, no symbols. For a request, say what you will do now.
 4. For a request, set "focus": "kinds" = a subset of [fr2en, chart, fill, choice, fix, order, repeat, verb, vocab, open] (fr2en = translation French→English, chart = conjugation, choice = choose the right tense, fill = gap-fill, fix = correct the sentence, order = build a sentence, repeat = pronunciation, verb = irregular verbs, vocab = vocabulary, open = free questions), or [] for any; "topic" = present | past | future | irregular | vocab | all | null.
 Return ONLY JSON: {"intent":"answer"|"question"|"request","verdict":"correct"|"almost"|"wrong"|null,"corrected":"best correct English answer close to what he said (gap-fill: the whole sentence)","errors":[{"type":"grammaire"|"vocabulaire"|"prononciation"|"sens","detail":"très court, en français"}],"rule":"rappel de la règle en une phrase courte en français, vide si correct","unknown_words":[{"fr":"","en":""}],"spoken":"retour oral très court en français (8 mots max), chaleureux","reply":"","focus":{"kinds":[],"topic":null}}`;
-  try{const r=await Promise.race([SAMPLE.json(prompt,{modelTier:"quick"}),wait(18000).then(()=>{throw {code:"timeout"}})]);return r&&r.intent?r:{...r,intent:"answer"}}
+  try{const r=await Promise.race([SAMPLE.json(prompt,{modelTier:"quick",maxTokens:500}),wait(15000).then(()=>{throw {code:"timeout"}})]);return r&&r.intent?r:{...r,intent:"answer"}}
   catch(e){return{intent:"answer",verdict:"wrong",corrected:it?it.ans[0]:"",errors:[],rule:it?it.rule:"",spoken:"Je n'ai pas pu vérifier en détail."}}
 }
 async function finishAnswer(ans,res){
@@ -1825,22 +1844,24 @@ async function finishAnswer(ans,res){
   CAR.last={answer:ans,res};applyCar(it,ans,res,lat);
   CAR.phase="feedback";renderCar();
   const L=[],corr=res.corrected||it.ans[0];
-  if(res.verdict==="correct"&&res.slow)L.push({text:"Juste ! Essaie de répondre encore plus vite, je te la redonnerai.",lang:"fr"});
-  else if(res.verdict==="correct"){L.push({text:res.spoken||PRAISE_FR[Math.random()*PRAISE_FR.length|0],lang:"fr"});if(["fr2en","fix","order","open","past"].includes(it.kind))L.push({text:corr,lang:"en"})}
+  earcon(res.verdict==="correct"?"ok":"ko");
+  if(res.verdict==="correct"&&res.slow)L.push({text:"Juste, mais un peu lent. Je te la redonnerai.",lang:"fr"});
+  else if(res.verdict==="correct"){L.push({text:PRAISE_EN[Math.random()*PRAISE_EN.length|0],lang:"en"});if(["fr2en","fix","order","open","past"].includes(it.kind)&&norm(corr)!==norm(ans||""))L.push({text:corr,lang:"en"})}
   else{L.push({text:res.spoken||(res.verdict==="almost"?"Presque !":"Pas tout à fait."),lang:"fr"},{text:it.kind==="open"?"Tu peux dire :":"La bonne réponse :",lang:"fr"},{text:corr,lang:it.ansLang});
     (res.errors||[]).slice(0,2).forEach(e=>{if(e.detail)L.push({text:e.detail,lang:"fr"})});
     if(res.rule||it.rule)L.push({text:"Règle : "+(res.rule||it.rule),lang:"fr"})}
   await speakSeq(L);
   if(!CAR.active||CAR.phase!=="feedback")return;
   if(res.verdict!=="correct"&&it.ansLang==="en"&&DICT){
-    await speakSeq([{text:"Touche le micro et répète la bonne phrase, ou dis « suivant ».",lang:"fr"}]);
-    if(CAR.active&&CAR.phase==="feedback"){CAR.phase="repeat";renderCar();CAR.timer=setTimeout(()=>{if(CAR.phase==="repeat"){CAR.i++;carNext()}},12000)}
+    await speakSeq([{text:carAuto()?"Répète :":"Touche le micro et répète la phrase, ou suivant.",lang:"fr"},...(carAuto()?[{text:corr,lang:"en"}]:[])]);
+    if(CAR.active&&CAR.phase==="feedback"){CAR.phase="repeat";renderCar();if(carAuto())carAutoListen();else CAR.timer=setTimeout(()=>{if(CAR.phase==="repeat"){CAR.i++;carNext()}},12000)}
     return}
   CAR.i++;carNext();
 }
 function carReveal(){const it=CAR.queue[CAR.i];if(!it)return;CAR.last={answer:"",res:{verdict:null,corrected:it.example||it.ans[0],errors:[],rule:it.rule}};CAR.phase="self";renderCar();
   speakSeq([{text:"La réponse :",lang:"fr"},{text:it.example||it.ans[0],lang:it.ansLang}])}
 const PRAISE_FR=["Parfait !","Bravo !","Excellent !","Très bien !","Super !"];
+const PRAISE_EN=["Great!","Perfect!","Yes!","Well done!","Excellent!","Spot on!"];
 function localMatch(it,ans){const a=norm(ans);
   if(["chart","past","fr2en","fix","order","repeat"].includes(it.kind))return it.ans.some(x=>norm(x)===a);
   if(it.kind==="fill")return it.ans.some(x=>(" "+a+" ").includes(" "+norm(x)+" "));
@@ -1895,6 +1916,10 @@ function carDictState(state,reason){
   CAR.micState=state==="listening"?"listening":state==="idle"?"idle":CAR.micState;
   if(state==="idle"&&CAR.active&&CAR.phase==="listening"&&!CAR.closing){
     if(reason==="not_granted"){toast("Micro refusé");CAR.phase="await";renderCar();return}
+    const it=CAR.queue[CAR.i],said=toks((CAR.buf+" "+CAR.partial).trim()).length,want=it&&it.ans&&it.ans[0]?toks(it.ans[0]).length:3;
+    /* the phone cut him off mid-sentence: keep listening once more, what he said is kept */
+    if(reason!=="stopped"&&CAR.heardAt&&CAR.talkMode==="answer"&&said<Math.ceil(want*.6)&&(CAR.cont||0)<1){CAR.cont=1;clearTimeout(CAR.timer);
+      try{DICT.start({language:CAR.talkLang||"en"}).catch(()=>carCloseAnswer())}catch(e){carCloseAnswer()}CAR.timer=setTimeout(carCloseAnswer,7000);return}
     carCloseAnswer()}
 }
 function renderCarBits(){const b=$("#carTalk");if(b)b.classList.toggle("dim",!!CAR.speaking&&CAR.phase!=="listening")}
@@ -1905,56 +1930,60 @@ function renderCar(){if(view==="car")render()}
 function vCar(app){
   const head=`<div class="pagehead t-coach">${tile("coach",{ic:"car"})}<div><span class="k">Oral · mains libres</span><h1>Mode voiture</h1></div><div class="row">${dom("oral")}${dom("pron")}${dom("vocab")}${dom("gram")}</div></div>`;
   if(CAR.active){
-    const it=CAR.queue[CAR.i],st=STATUS[CAR.phase]||STATUS.prompt,L=CAR.last,res=L&&L.res;
+    const it=CAR.queue[CAR.i],L=CAR.last,res=L&&L.res,auto=carAuto(),ph=CAR.phase;
     const g=CAR.results.filter(r=>r.verdict&&r.verdict!=="skip"),ok=g.filter(r=>r.verdict==="correct").length,ko=g.length-ok;
-    const showAnswer=it&&["feedback","repeat","self"].includes(CAR.phase)&&res;
+    const showAnswer=it&&["feedback","repeat","self"].includes(ph)&&res;
     const f=CAR.focus,focusTxt=f?[f.topic?FOCUS_T[f.topic]:"",(f.kinds||[]).map(k=>FOCUS_KIND_T[k]).filter((x,i,a)=>a.indexOf(x)===i).join(", ")].filter(Boolean).join(" · "):"";
-    const talkLbl=!DICT?"Voir la réponse":CAR.phase==="listening"?"J'ai fini":CAR.phase==="repeat"?"Répéter la phrase":["checking","intro"].includes(CAR.phase)?"…":"Parler";
-    app.innerHTML=`<section class="view carv2">
-     <div class="row"><span class="res neutral">${ICON.car}<span>Question ${CAR.i+1}</span></span>${resChip("ok",String(ok))}${resChip("ko",String(ko))}${focusTxt?`<span class="res warn">${ICON.target}<span>${esc(focusTxt)}</span></span><button class="btn small" id="carAll">Tout réviser</button>`:""}<span class="spacer"></span><button class="btn" id="carEnd" style="border-color:var(--bad);color:var(--bad);background:var(--bad-s)">${ICON.x}<span>Arrêter la session</span></button></div>
-     <div class="carstage">
-      <div class="carstatus ${CAR.phase}">${ICON[st[0]]}<span>${st[1]}</span></div>
-      ${CAR.phase==="talk"&&CAR.reply?`<div class="cartr" style="color:var(--ink)">${esc(CAR.reply)}</div>`:""}
-      ${it&&CAR.phase!=="talk"?`<div class="row"><span class="ptype" style="font-size:1.1rem">${esc(LANG_LABEL[it.kind])}</span>${dom(KIND_DOM[it.kind])}${it.l?`<span class="res neutral">${ICON.book}<span>Cours ${it.l.slice(1)}</span></span>`:""}</div>
-      <div class="bigq ${["fr2en","vocab"].includes(it.kind)?"":"en"}">${esc(it.ask)}</div>`:""}
-      ${CAR.phase==="listening"||(L&&L.answer&&["checking","feedback","repeat"].includes(CAR.phase))?`<div class="cartr"><span class="small muted">Tu as dit :</span><div id="carTr">${esc(CAR.phase==="listening"?((CAR.buf+" "+CAR.partial).trim()||"…"):(L&&L.answer)||"")}</div></div>`:""}
-      ${showAnswer?`<div class="carfb">${res.verdict==="correct"&&res.slow?resChip("warn","Juste mais lent · "+res.lat+" s"):res.verdict==="correct"?resChip("ok","Juste"):res.verdict==="almost"?resChip("warn","Presque"):res.verdict==="wrong"?resChip("ko","À revoir"):resChip("neutral","Réponse")}
-        <div class="bigans ${it.ansLang==="en"?"en":""}">${resChip("fix",res.corrected||it.ans[0])}</div>
-        ${(res.errors||[]).length?`<div class="row">${res.errors.map(e=>`${ERRDOM[e.type]?dom(ERRDOM[e.type]):""}<span>${esc(e.detail||"")}</span>`).join(" ")}</div>`:""}
-        ${(res.rule||(res.verdict&&res.verdict!=="correct"?it.rule:""))?`<div class="tip">${ICON.puzzle}<span><b>Règle :</b> ${esc(res.rule||it.rule)}</span>${memoBtn(memoTopic(res.rule,it.rule,res.corrected))}</div>`:""}</div>`:""}
+    const fr=ph==="listening"&&CAR.talkLang==="fr";
+    const ST2={intro:["speak","Je prépare ta session…"],prompt:["speak","Écoute…"],await:["mic",auto?"Bip… à toi":"À toi : touche le micro"],listening:["mic",fr?"Je t'écoute en français…":"Je t'écoute…"],checking:["spark","Je vérifie…"],feedback:["pen","Correction"],repeat:["mic",auto?"Répète la phrase":"Touche et répète"],talk:["speak","Je te réponds…"],self:["check","Tu avais bon ?"],end:["trophy","Session terminée"]}[ph]||["speak","…"];
+    const talkLbl=!DICT?"Voir la réponse":ph==="listening"?"J'ai fini":["checking","intro"].includes(ph)?"…":ph==="repeat"?"Répéter":["prompt","talk","feedback"].includes(ph)?"Couper et parler":"Parler";
+    app.innerHTML=`<section class="view carv3">
+     <div class="ctop"><span class="cq">${ICON.car}<b>${CAR.i+1}</b></span><span class="cok">${ICON.check}${ok}</span><span class="cko">${ICON.x}${ko}</span>
+       ${focusTxt?`<button class="cfocus" id="carAll" title="Revenir à tout">${ICON.target}<span>${esc(focusTxt)}</span>${ICON.x}</button>`:""}<span class="spacer"></span>
+       <button class="cauto ${auto?"on":""}" id="carAuto" aria-label="Micro automatique">${ICON.mic}<span>${auto?"Auto":"Manuel"}</span></button>
+       <button class="cstop" id="carEnd">${ICON.x}<span>Stop</span></button></div>
+     <div class="cstage ph-${ph}" id="carStage">
+      <div class="cstatus">${ph==="listening"?`<span class="cwave"><i></i><i></i><i></i><i></i></span>`:ICON[ST2[0]]}<span>${ST2[1]}</span></div>
+      ${ph==="talk"&&CAR.reply?`<div class="creply">${esc(CAR.reply)}</div>`:""}
+      ${it&&ph!=="talk"?`<div class="ckind">${esc(LANG_LABEL[it.kind])}</div><div class="cbig ${["fr2en","vocab"].includes(it.kind)?"":"en"}">${esc(it.ask)}</div>`:""}
+      ${ph==="listening"||(L&&L.answer&&["checking","feedback","repeat"].includes(ph))?`<div class="csaid" id="carTr">${esc(ph==="listening"?((CAR.buf+" "+CAR.partial).trim()||"…"):(L&&L.answer)||"")}</div>`:""}
+      ${showAnswer?`<div class="cfb ${res.verdict==="correct"?"good":res.verdict?"bad":""}"><div class="cverd">${res.verdict==="correct"&&res.slow?"Juste, mais lent · "+res.lat+" s":res.verdict==="correct"?"Juste !":res.verdict==="almost"?"Presque":res.verdict==="wrong"?"À revoir":"Réponse"}</div>
+        <div class="cans ${it.ansLang==="en"?"en":""}">${esc(res.corrected||it.ans[0])}</div>
+        ${(res.rule||(res.verdict&&res.verdict!=="correct"?it.rule:""))?`<div class="crule">${esc(res.rule||it.rule)}</div>`:""}</div>`:""}
      </div>
-     <p class="muted small" style="text-align:center">Gros bouton = répondre en anglais. Bouton du bas = parler en français : « rappelle-moi la règle du passé », « fais-moi des traductions », « pourquoi c'est faux ? », « stop ».</p>
-     <div class="cardock">
-      ${CAR.phase==="self"?`<div class="carctl"><button class="carbtn ok" id="selfOk">${ICON.check}<span>J'avais bon</span></button><button class="carbtn ko" id="selfKo">${ICON.x}<span>À revoir</span></button></div>`:`
-      <div class="dockrow"><button class="carbtn side" id="carRep">${ICON.history}<span>Réécouter</span></button>
-      <button class="talkbtn ${CAR.phase==="listening"?"on":""} ${["checking","intro"].includes(CAR.phase)?"busy":""}" id="carTalk" aria-label="${talkLbl}">${ICON.mic}<span>${talkLbl}</span></button>
-      <button class="carbtn side" id="carSkip">${ICON.zap}<span>Suivant</span></button></div>
-      ${DICT?`<button class="frq ${CAR.phase==="listening"&&CAR.talkLang==="fr"?"on":""}" id="carFr">${ICON.chat}<span>${CAR.phase==="listening"&&CAR.talkLang==="fr"?"Je t'écoute en français… (touche pour finir)":"Poser une question en français"}</span></button>`:""}`}
+     <div class="cdock">
+      ${ph==="self"?`<div class="cside"><button class="cbtn good" id="selfOk">${ICON.check}<span>J'avais bon</span></button><button class="cbtn bad" id="selfKo">${ICON.x}<span>À revoir</span></button></div>`:`
+      <button class="ctalk ${ph==="listening"?(fr?"on fr":"on"):""} ${["checking","intro"].includes(ph)?"busy":""}" id="carTalk">${ICON.mic}<span>${talkLbl}</span></button>
+      <div class="cside"><button class="cbtn" id="carRep">${ICON.history}<span>Réécouter</span></button>
+       ${DICT?`<button class="cbtn fr ${fr?"on":""}" id="carFr">${ICON.chat}<span>Question en français</span></button>`:""}
+       <button class="cbtn" id="carSkip">${ICON.zap}<span>Suivant</span></button></div>`}
      </div>
     </section>`;
     $("#carEnd").onclick=()=>carEnd();
     if($("#carAll"))$("#carAll").onclick=()=>{CAR.focus=null;renderCar();toast("On révise tout")};
+    $("#carAuto").onclick=()=>{lsSet("el-car-auto",carAuto()?"0":"1");toast(carAuto()?"Micro automatique après chaque question":"Micro manuel : touche pour parler");renderCar();if(carAuto()&&["await","repeat"].includes(CAR.phase))carAutoListen()};
     if($("#carRep"))$("#carRep").onclick=carRepeat;
     if($("#carSkip"))$("#carSkip").onclick=carSkip;
     if($("#carTalk"))$("#carTalk").onclick=()=>carTalk(CAR.phase==="listening"?CAR.talkLang:"en");
     if($("#carFr"))$("#carFr").onclick=()=>carTalk("fr");
+    /* the whole question area is a big button too */
+    $("#carStage").onclick=e=>{if(e.target.closest("button,a"))return;if(["await","repeat","listening","prompt","feedback","talk"].includes(CAR.phase))carTalk(CAR.phase==="listening"?CAR.talkLang:"en")};
     if($("#selfOk"))$("#selfOk").onclick=()=>carSelf(true);
     if($("#selfKo"))$("#selfKo").onclick=()=>carSelf(false);
     renderCarBits();
     return;
   }
-  const pool=carPool(),plan=sessionPlan(pool);
+  const pool=carPool(),plan=sessionPlan(pool),auto=carAuto();
   const sum=CAR.summary?panel("suivi","Bilan de la dernière session",`<div class="row">${resChip("ok",CAR.summary.filter(r=>r.verdict==="correct").length+" justes")}${resChip("ko",CAR.summary.filter(r=>r.verdict&&r.verdict!=="correct"&&r.verdict!=="skip").length+" à revoir")}</div>
     <div class="list">${CAR.summary.filter(r=>r.verdict&&r.verdict!=="skip").map(r=>`<div class="irow">${r.verdict==="correct"?resChip("ok","Juste"):resChip("ko","À revoir")}<div class="it"><b class="${["fr2en","vocab"].includes(r.it.kind)?"":"en"}">${esc(r.it.ask)}</b><span>${r.answer?"Tu as dit : « "+esc(r.answer)+" »":""}</span></div>${resChip("fix",r.corrected||r.it.ans[0])}</div>`).join("")}</div>`,{kicker:"Session",ic:"trophy"}):"";
   app.innerHTML=`<section class="view">${head}
-   <button class="carstart" id="carGo">${ICON.car}<span>Démarrer la session</span></button>
-   <div class="row" style="justify-content:center">${DICT?resChip("ok","Micro disponible : touche le gros bouton pour répondre"):resChip("warn","Micro indisponible ici : mode écoute")}</div>
+   <button class="carstart" id="carGo">${ICON.car}<span>Démarrer</span></button>
+   ${DICT?`<div class="mseg carmode"><button data-auto="1" class="${auto?"on":""}">${ICON.mic}<span>Mains libres<small>bip puis micro automatique</small></span></button><button data-auto="0" class="${auto?"":"on"}">${ICON.check}<span>Je touche pour parler<small>gros bouton</small></span></button></div>`:`<div class="row" style="justify-content:center">${resChip("warn","Micro indisponible ici : mode écoute")}</div>`}
    ${sum}
-   <div class="cols"><div class="col">
-    ${panel("coach","Ce que je te fais travailler maintenant",`<ul style="margin:0;padding-left:22px">${plan.map(x=>`<li>${esc(x.charAt(0).toUpperCase()+x.slice(1))}</li>`).join("")}</ul>`,{kicker:"Session adaptée",ic:"spark"})}
-   </div><div class="col">
-   </div></div></section>`;
+   ${panel("coach","Ce que je te fais travailler maintenant",`<ul style="margin:0;padding-left:22px">${plan.map(x=>`<li>${esc(x.charAt(0).toUpperCase()+x.slice(1))}</li>`).join("")}</ul>`,{kicker:"Session adaptée",ic:"spark"})}
+   </section>`;
   $("#carGo").onclick=carStart;
+  app.querySelectorAll("[data-auto]").forEach(b=>b.onclick=()=>{lsSet("el-car-auto",b.dataset.auto);render()});
 }
 function carSuiviPanel(st){
   const all=Object.entries(st.car||{}),rw=all.filter(([id,r])=>((r.errs||0)>0||(r.slow||0)>0)&&(r.box||0)<3),mast=all.filter(([id,r])=>r.mastered);
