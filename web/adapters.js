@@ -20,7 +20,7 @@ async function token(){const s=sess();if(!s)return null;if(Date.now()/1000<s.exp
     const j=stamp(await r.json());setSess(j);return j.access_token}catch(e){return null}}
 async function sb(path,opt={},auth=true){
   const h={apikey:CFG.supabaseKey,"Content-Type":"application/json",...(opt.headers||{})};
-  if(auth){const t=await token();if(!t)throw {code:"signed_out"};h.Authorization="Bearer "+t}else h.Authorization="Bearer "+CFG.supabaseKey;
+  if(auth){const t=await token();if(!t)throw {code:"signed_out"};h.Authorization="Bearer "+t}else if(!/^sb_/.test(CFG.supabaseKey))h.Authorization="Bearer "+CFG.supabaseKey;
   const r=await fetch(CFG.supabaseUrl+path,{...opt,headers:h});
   if(!r.ok){let m="";try{const j=await r.json();m=j.msg||j.message||j.error_description||""}catch(e){}throw {code:"http_"+r.status,message:m}}
   const tx=await r.text();return tx?JSON.parse(tx):null}
