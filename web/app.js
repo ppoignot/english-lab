@@ -1406,7 +1406,7 @@ const memoBtn=key=>key?`<button class="btn small memobtn" data-memo="${key}">${I
 function openMemo(key){
   const m=MEMOS[key];if(!m)return;
   const ov=document.createElement("div");ov.className="ov";
-  const rel=m.tense==="prep"?["prepmove","ininto","intime"]:m.tense==="past"?["pastsimple","pastcont","pastperfect","bepast"]:m.tense==="present"?["pressimple","prescont","presperfect","questions"]:m.tense==="mixed"?["questions","bepast","pastsimple","pastcont","pastperfect"]:["will","goingto","futcont","futperfect"];
+  const rel=(typeof MEMO_GROUPS!=="undefined"&&(MEMO_GROUPS.find(g=>g[1].includes(key))||[])[1])||Object.keys(MEMOS);
   ov.innerHTML=`<div class="box memo" style="max-width:760px">${panel("cours",esc(m.t),`
     <div class="row">${rel.map(k=>`<button class="btn small ${k===key?"typed t-cours":""}" data-memo="${k}">${esc(MEMOS[k].t)}</button>`).join("")}</div>
     ${typeof MEMO_VIS!=="undefined"&&MEMO_VIS[key]?`<div class="mvis">${MEMO_VIS[key]()}</div>`:""}

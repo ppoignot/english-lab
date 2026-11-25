@@ -56,8 +56,8 @@ function openQuick(){
     <button class="mtile t-rev" data-irrlist="1">${tile("rev",{ic:"abc",solid:true})}<b>Verbes irréguliers</b><span>${IRR.length} verbes</span></button>
     ${cur?`<a class="mtile t-cours" href="#lessons--${cur.id}">${tile("cours",{ic:"book",solid:true})}<b>Fiche du cours ${cur.n}</b><span>${esc(cur.topic)}</span></a>`:""}
    </div>
-   <h3 class="msec" style="padding:0 16px">Mémos de grammaire</h3>
-   <div class="qmemos">${Object.entries(MEMOS).map(([k,m])=>`<button class="mrow t-cours" data-memo="${k}">${tile("cours",{ic:"book"})}<div class="mrt"><b>${esc(m.t)}</b></div><span class="mchev">${ICON.chev}</span></button>`).join("")}</div></div>`;
+   ${(typeof MEMO_GROUPS!=="undefined"?MEMO_GROUPS:[["Mémos de grammaire",Object.keys(MEMOS)]]).map(([g,ks])=>`<h3 class="msec" style="padding:0 16px">${esc(g)}</h3>
+   <div class="qmemos">${ks.filter(k=>MEMOS[k]).map(k=>`<button class="qchip" data-memo="${k}">${esc(MEMOS[k].t)}</button>`).join("")}</div>`).join("")}</div>`;
   document.querySelectorAll(".quick-ov").forEach(o=>o.remove());document.body.appendChild(ov);
   const close=()=>ov.remove();$("#qX",ov).onclick=close;ov.onclick=e=>{if(e.target===ov||e.target.closest("a,[data-chart],[data-irrlist],[data-memo]"))setTimeout(close,0)};
 }

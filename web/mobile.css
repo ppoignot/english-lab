@@ -230,3 +230,26 @@ body.coachmode .mbar .mquick{display:inline-flex}
 .mvpi{width:64px;height:48px;flex:none}
 .mvpt{display:inline-block;background:var(--c);color:#fff;font-weight:800;border-radius:8px;padding:1px 10px;font-size:.92rem;text-transform:uppercase;margin-bottom:2px}
 .mvp b{color:var(--c)}
+.qmemos{flex-direction:row!important;flex-wrap:wrap}
+.qchip{border:2px solid var(--cours-l);background:var(--cours-s);color:var(--cours);border-radius:14px;padding:10px 12px;font:inherit;font-weight:800;font-size:.95rem;min-height:46px}
+.mvcards{display:grid;grid-template-columns:repeat(min(var(--cols),2),1fr);gap:8px}
+@media (min-width:620px){.mvcards{grid-template-columns:repeat(var(--cols),1fr)}}
+.mvc{border:2.5px solid var(--c);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center}
+.mvc .mvbig{font-size:1.7rem}
+.mvtab{overflow-x:auto}.mvtab table{border-collapse:separate;border-spacing:3px;font-size:.95rem}
+.mvtab th{color:#fff;border-radius:8px;padding:6px 8px;font-size:.85rem}
+.mvtab td{background:color-mix(in srgb,var(--c) 9%,#fff);border-radius:8px;padding:6px 8px;border:0}
+.mvtab td b{color:var(--c)}
+.mvscale{display:flex;flex-direction:column;gap:6px}
+.mvbar{display:flex;gap:3px;border-radius:12px;overflow:hidden}
+.mvbar>div{background:var(--c);color:#fff;padding:8px 4px;display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.mvbar b{font-size:.88rem;line-height:1.15}.mvbar span{font-size:.72rem;opacity:.92}
+.mvpyr{display:flex;flex-direction:column;align-items:center;gap:6px}
+.mvpyr>div{background:color-mix(in srgb,var(--c) 10%,#fff);border:2.5px solid var(--c);border-radius:14px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mvpyr b{font-family:var(--display);font-size:1.6rem;color:var(--c);line-height:1}.mvpyr span{font-size:.85rem;font-weight:700;color:var(--muted)}.mvpyr i{font-size:.95rem}
+.mvif{display:flex;align-items:center;justify-content:center;gap:10px;font-size:1.2rem}
+.mvif>div{border:2.5px solid var(--c);background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:14px;padding:10px 14px;font-weight:700}
+.mvif b{color:var(--c)}
+.mvc .mvbig.sm{font-size:1.2rem;line-height:1.15}
+.mvbar{flex-wrap:wrap}.mvbar>div{flex:1 1 30%}
+@media (min-width:620px){.mvbar>div{flex:1 1 0}}
