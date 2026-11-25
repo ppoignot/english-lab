@@ -2,7 +2,7 @@
    so the Android app also works offline on its very first launch. */
 const fs=require("fs"),path=require("path"),cp=require("child_process");
 const root=path.join(__dirname,".."),web=path.join(root,"web");
-const files=["base.css","mobile.css","config.js","adapters.js","app.js","memovis.js","mobile.js"];
+const files=["base.css","mobile.css","config.js","adapters.js","app.js","memovis.js","lessons6.js","mobile.js"];
 let v=process.env.GITHUB_SHA||"";try{if(!v)v=cp.execSync("git rev-parse HEAD",{cwd:root}).toString().trim()}catch(e){}
 if(!v)v="dev-"+Date.now();
 const nativeVer=JSON.parse(fs.readFileSync(path.join(root,"package.json"))).version;
