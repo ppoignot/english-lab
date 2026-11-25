@@ -9,7 +9,7 @@
   try{rows=k?await EL_AUTH.coachSnapshot(k):[]}catch(e){console.warn(e)}
   const data={};let at=0;(rows||[]).forEach(r=>{(data[r.coll]=data[r.coll]||{})[r.id]=r.data;at=Math.max(at,Date.parse(r.at)||0)});
   window.EL_SNAP={at,data};
-  for(const f of ["app.js","mobile.js"])await new Promise((res,rej)=>{const s=document.createElement("script");s.src=f;s.onload=res;s.onerror=rej;document.body.appendChild(s)});
+  for(const f of ["app.js","memovis.js","mobile.js"])await new Promise((res,rej)=>{const s=document.createElement("script");s.src=f;s.onload=res;s.onerror=rej;document.body.appendChild(s)});
 })();
 </script>
 </body></html>

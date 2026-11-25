@@ -203,3 +203,30 @@ body.coachmode .mbar .mquick{display:inline-flex}
 .qmemos .mrow{font:inherit;text-align:left;min-height:60px}
 .quick-ov .box{overflow:auto}
 @media (max-width:380px){.mbar .mquick span{display:none}}
+
+/* ============ visual memos ============ */
+.mvis{display:flex;flex-direction:column;gap:10px;background:#FFFBF7;border:1.5px solid var(--line);border-radius:18px;padding:12px}
+.mvsvg{width:100%;height:auto;display:block}
+.mvsvg .mvl{font:800 19px var(--body);letter-spacing:.04em}
+.mvsvg .mvt{font:800 21px var(--body)}
+.mvsvg .mvb{font:800 19px var(--body);fill:#fff}
+.mvsvg .mvn{font:800 13px var(--body);fill:#fff}
+.mvsvg .mvclock{font:700 22px ui-monospace,monospace;fill:var(--ink)}
+.mvex{display:flex;flex-direction:column;gap:6px}
+.mvexr{border-left:5px solid var(--c);background:#fff;border-radius:10px;padding:8px 12px;font-size:1.08rem}
+.mvgrid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mvbox{border:2.5px solid var(--c);border-radius:16px;padding:12px;text-align:center;background:#fff;display:flex;flex-direction:column;gap:4px;align-items:center}
+.mvbig{font-family:var(--display);font-size:2.2rem;font-weight:700;color:var(--c);line-height:1}
+.mvpr{font-weight:800;color:var(--muted)}.mvsub{font-size:.9rem;color:var(--muted);font-weight:700}
+.mvs{font-size:1rem}.mvico{width:110px;height:auto}
+.mvq{display:flex;flex-direction:column;gap:6px;overflow-x:auto}
+.mvqr{display:grid;grid-template-columns:auto auto auto auto 1fr;gap:4px}
+.mvqr span{background:color-mix(in srgb,var(--c) 14%,#fff);border:2px solid var(--c);color:var(--ink);border-radius:10px;padding:6px 8px;text-align:center;font-weight:800;font-size:1rem;white-space:nowrap}
+.mvqr.head span{background:var(--c);color:#fff;font-size:.78rem;text-transform:uppercase}
+.mvnote{font-size:.95rem;color:var(--muted)}
+.mvprep{display:grid;grid-template-columns:1fr;gap:8px}
+@media (min-width:620px){.mvprep{grid-template-columns:1fr 1fr}}
+.mvp{display:flex;gap:10px;align-items:center;border:2px solid color-mix(in srgb,var(--c) 45%,#fff);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:14px;padding:8px 10px}
+.mvpi{width:64px;height:48px;flex:none}
+.mvpt{display:inline-block;background:var(--c);color:#fff;font-weight:800;border-radius:8px;padding:1px 10px;font-size:.92rem;text-transform:uppercase;margin-bottom:2px}
+.mvp b{color:var(--c)}

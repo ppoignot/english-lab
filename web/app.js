@@ -1397,7 +1397,7 @@ async function explainWrong(el,q,given,right,ctx){
   try{const r=await SAMPLE.json(`A French A2 learner of English did this exercise: "${q}" (${ctx||"exercise"}).
 His answer: "${given}". Correct answer: "${right}". Ignore capital letters and punctuation.
 Explain IN FRENCH, simply and briefly (1-2 sentences), exactly why his answer is wrong, pointing at his specific mistake. Then give the general rule in one short sentence.
-Choose the most relevant grammar memo among: pastsimple, pastcont, pastperfect, bepast, questions, pressimple, prescont, presperfect, will, goingto, futcont, futperfect.
+Choose the most relevant grammar memo among: pastsimple, pastcont, pastperfect, bepast, questions, pressimple, prescont, presperfect, will, goingto, futcont, futperfect, prepmove, ininto, intime.
 Reply ONLY with JSON: {"explication":"...","regle":"...","topic":"..."}`,{modelTier:"quick"});
     WHYCACHE[key]=r;try{localStorage.setItem("englishlab-why",JSON.stringify(WHYCACHE))}catch(e){}show(r)}
   catch(e){const t=memoTopic(right,ctx);el.innerHTML=t?`<div class="whybox">${ICON.info}<div>Ouvre le mémo pour revoir la règle.</div>${memoBtn(t)}</div>`:""}
@@ -1406,9 +1406,10 @@ const memoBtn=key=>key?`<button class="btn small memobtn" data-memo="${key}">${I
 function openMemo(key){
   const m=MEMOS[key];if(!m)return;
   const ov=document.createElement("div");ov.className="ov";
-  const rel=m.tense==="past"?["pastsimple","pastcont","pastperfect","bepast"]:m.tense==="present"?["pressimple","prescont","presperfect","questions"]:m.tense==="mixed"?["questions","bepast","pastsimple","pastcont","pastperfect"]:["will","goingto","futcont","futperfect"];
+  const rel=m.tense==="prep"?["prepmove","ininto","intime"]:m.tense==="past"?["pastsimple","pastcont","pastperfect","bepast"]:m.tense==="present"?["pressimple","prescont","presperfect","questions"]:m.tense==="mixed"?["questions","bepast","pastsimple","pastcont","pastperfect"]:["will","goingto","futcont","futperfect"];
   ov.innerHTML=`<div class="box memo" style="max-width:760px">${panel("cours",esc(m.t),`
     <div class="row">${rel.map(k=>`<button class="btn small ${k===key?"typed t-cours":""}" data-memo="${k}">${esc(MEMOS[k].t)}</button>`).join("")}</div>
+    ${typeof MEMO_VIS!=="undefined"&&MEMO_VIS[key]?`<div class="mvis">${MEMO_VIS[key]()}</div>`:""}
     <div><h3>Quand l'utiliser ?</h3><ul>${m.quand.map(x=>`<li>${x}</li>`).join("")}</ul></div>
     <div class="tblwrap"><table><tr><th></th><th>Construction</th><th>Exemple</th></tr>${m.forme.map(f=>`<tr><td><b>${f[0]}</b></td><td>${f[1]}</td><td class="en say">${f[2]}</td></tr>`).join("")}</table></div>
     <div><h3>Mots-indices</h3><p class="en">${m.indices}</p></div>
